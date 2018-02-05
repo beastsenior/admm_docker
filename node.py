@@ -32,16 +32,22 @@ if pid==0:
 				l_ow, now = tp.get_ow(G, ni.LOCAL_IP)  	#l_ow: list of own workers. #now: number of own workers
 				l_row = [] #list of received own workers
 				nrow = 0 #number of received own workers
-				k = 0 
+				k = 0 #iter
 				#3.setup data
 				if g.L_MODE[mode_i][0] == 'Lasso':
 					z = np.zeros([g.DD,1])   
 					xu = {} #x=xu[ip][0],u=xu[ip][1]
+					x_buf = {} #packet buffer of x
+					u_buf = {} #packet buffer of u
+					l = {}  # counter for packets (g.NP). l['172.17.0.5']=3 means node have getten 3 packets from 172.17.0.5
 					Lmin = np.zeros([g.ITER]) #Lagrangian funtion
 					t = np.zeros([g.ITER])  #time
 					A={}
 					b={}
 					for ip in l_ow:
+						l[ip] = 0
+						x_buf[ip] = ""
+						u_buf[ip] = ""
 						A[ip],b[ip] = db.load(['A','b'], mode_i, ip)
 				else:
 					print('Bridge: Error: unknow problem.')
@@ -61,7 +67,8 @@ if pid==0:
 			elif r_command == g.D_COMMAND['bridge start']:
 				if g.L_MODE[mode_i][0] == 'Lasso':			
 					for ip in l_ow:
-						ser.sendto(z.tostring(),(ip, g.WPORT))
+						#ser.sendto(z.tostring(),(ip, g.WPORT))
+						ni.allsendto(ser,z.tostring(),(ip, g.WPORT))
 					print('Bridge: mode_i=%d (%s): ADMM is running...'%(mode_i,str(g.L_MODE[mode_i])))
 				else:
 					print('Bridge: Error: unknow problem.')	
@@ -74,27 +81,39 @@ if pid==0:
 				if g.L_MODE[mode_i][0] == 'Lasso':
 					if g.L_MODE[mode_i][1] == 'StarADMM' or g.L_MODE[mode_i][1] == 'BridgeADMM':				
 						if g.L_MODE[mode_i][3] == g.L_TAU[0]:  #tau=1, synchronous
-							xu[addr[0]] = np.fromstring(r_msg,dtype=z.dtype).reshape([2,g.DD,1])  
-							l_row.append(addr[0])
-							nrow+=1
-							if nrow == now:
-								z = ad.get_z(xu, l_row, nrow)
-								Lmin[k] = ad.get_Lmin(xu,z,A,b,l_row)
-								if k == 0:
-									t0 = time.time()
-								t[k] = time.time() - t0
-								k+=1
-								if k < g.ITER:								
-									for ip in l_row:
-										ser.sendto(z.tostring(),(ip, g.WPORT))	
-									l_row = [] 
-									nrow = 0
-								else:
-									db.save({'Lmin':Lmin,'t':t},mode_i,ni.LOCAL_IP) #save to basedata	
-									ser.close()
-									ser = ni.init_socket('bridge')
-									ser.sendto(np.int8(g.D_COMMAND['bridge ready']).tostring(),(g.IP_ADMIN, g.APORT))  
-									print('Bridge: mode_i=%d (%s): Done!'%(mode_i,str(g.L_MODE[mode_i])))									
+							# xu[addr[0]] = np.fromstring(r_msg,dtype=z.dtype).reshape([2,g.DD,1])
+							if l[addr[0]]<g.NP:
+								x_buf[addr[0]] = x_buf[addr[0]] + r_msg
+							else:
+								u_buf[addr[0]] = u_buf[addr[0]] + r_msg
+							l[addr[0]] += 1
+							if l[addr[0]] == 2*g.NP:
+								xu[addr[0]][0] = np.fromstring(x_buf, dtype=z.dtype).reshape([g.DD, 1])
+								xu[addr[0]][1] = np.fromstring(u_buf, dtype=z.dtype).reshape([g.DD, 1])
+								l_row.append(addr[0])
+								nrow+=1
+								if nrow == now:
+									z = ad.get_z(xu, l_row, nrow)
+									Lmin[k] = ad.get_Lmin(xu,z,A,b,l_row)
+									if k == 0:
+										t0 = time.time()
+									t[k] = time.time() - t0
+									k+=1
+									if k < g.ITER:
+										for ip in l_row:
+											#ser.sendto(z.tostring(),(ip, g.WPORT))
+											ni.allsendto(ser, z.tostring(), (ip, g.WPORT))
+											l[ip] = 0
+											x_buf[ip] = ""
+											u_buf[ip] = ""
+										l_row = []
+										nrow = 0
+									else:
+										db.save({'Lmin':Lmin,'t':t},mode_i,ni.LOCAL_IP) #save to basedata
+										ser.close()
+										ser = ni.init_socket('bridge')
+										ser.sendto(np.int8(g.D_COMMAND['bridge ready']).tostring(),(g.IP_ADMIN, g.APORT))
+										print('Bridge: mode_i=%d (%s): Done!'%(mode_i,str(g.L_MODE[mode_i])))
 				else:
 					print('Bridge: Error: unknow problem.')
 					input()	
@@ -136,9 +155,13 @@ else:
 						Q = np.linalg.inv(Q)						
 						x = np.zeros([g.DD,1])
 						u = {}
+						z = {}
+						z_buf = {}  # packet buffer of u
+						l = {}  # counter for packets (g.NP). l['172.17.0.5']=3 means node have getten 3 packets from 172.17.0.5
 						for ip in l_ob:
+							l[ip] = 0
+							z_buf[ip] = ""
 							u[ip]=np.zeros([g.DD,1])
-						z = {}  
 				#4.setup socket
 				ser.close()			
 				ser = ni.init_socket('worker')
@@ -165,20 +188,26 @@ else:
 				if g.L_MODE[mode_i][0] == 'Lasso':
 					if g.L_MODE[mode_i][1] == 'StarADMM' or g.L_MODE[mode_i][1] == 'BridgeADMM':				
 						if g.L_MODE[mode_i][3] == g.L_TAU[0]:  #tau=1, synchronous
-							z[addr[0]] = np.fromstring(r_msg,dtype=x.dtype).reshape([g.DD,1])
-							l_rob.append(addr[0])
-							nrob += 1
-							if nrob == nob:
-								x,u,xu = ad.get_xu(x,u,z,l_rob,Q,Atb)
-								for ip in l_rob:
-									ser.sendto(xu[ip].tostring(),(ip, g.BPORT))	
-								l_rob = [] 
-								nrob = 0
-								k += 1
-								if k == g.ITER:
-									ser.close()
-									ser = ni.init_socket('worker') 
-									print('Worker: mode_i=%d (%s): Done!'%(mode_i,str(g.L_MODE[mode_i])))									
+							#z[addr[0]] = np.fromstring(r_msg,dtype=x.dtype).reshape([g.DD,1])
+							z_buf[addr[0]] = z_buf[addr[0]] + r_msg
+							l[addr[0]] += 1
+							if l[addr[0]] == g.NP:
+								z[addr[0]] = np.fromstring(z_buf, dtype=z.dtype).reshape([g.DD, 1])
+								l_rob.append(addr[0])
+								nrob += 1
+								if nrob == nob:
+									x,u,xu = ad.get_xu(x,u,z,l_rob,Q,Atb)
+									for ip in l_rob:
+										#ser.sendto(xu[ip].tostring(),(ip, g.BPORT))
+										ni.allsendto(ser, x.tostring(), (ip, g.WPORT))
+										ni.allsendto(ser, u.tostring(), (ip, g.WPORT))
+									l_rob = []
+									nrob = 0
+									k += 1
+									if k == g.ITER:
+										ser.close()
+										ser = ni.init_socket('worker')
+										print('Worker: mode_i=%d (%s): Done!'%(mode_i,str(g.L_MODE[mode_i])))
 
 				else:
 					print('Worker: Error: unknow problem.')
