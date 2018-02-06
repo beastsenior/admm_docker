@@ -1,5 +1,6 @@
 import netifaces
 import socket
+import time
 
 import globle as g
 
@@ -29,6 +30,12 @@ def init_socket(role):
 		print('Error: wrong socket role.')
 		input()
 	return ser
+
+#send all buf (with g.NP packets)
+def allsendto(ser, buf, addr):
+	for l in range(g.NP):
+		ser.sendto(buf[l*g.BUFSIZE:(l+1)*g.BUFSIZE],addr)
+		time.sleep(0.1)
 
 #local ip
 LOCAL_IP = get_local_ip()
