@@ -45,9 +45,10 @@ if pid==0:
 					A={}
 					b={}
 					for ip in l_ow:
+						xu[ip] = np.zeros([2,g.DD,1])
 						l[ip] = 0
-						x_buf[ip] = ""
-						u_buf[ip] = ""
+						x_buf[ip] = b''
+						u_buf[ip] = b''
 						A[ip],b[ip] = db.load(['A','b'], mode_i, ip)
 				else:
 					print('Bridge: Error: unknow problem.')
@@ -83,13 +84,16 @@ if pid==0:
 						if g.L_MODE[mode_i][3] == g.L_TAU[0]:  #tau=1, synchronous
 							# xu[addr[0]] = np.fromstring(r_msg,dtype=z.dtype).reshape([2,g.DD,1])
 							if l[addr[0]]<g.NP:
-								x_buf[addr[0]] = x_buf[addr[0]] + r_msg
+								x_buf[addr[0]] += r_msg
+								print('+++Bridge: renew x_buf')
 							else:
-								u_buf[addr[0]] = u_buf[addr[0]] + r_msg
+								u_buf[addr[0]] += r_msg
+								print('+++Bridge: renew u_buf')
 							l[addr[0]] += 1
+							print('+++Bridge: l[addr[0]]',addr[0],l[addr[0]])
 							if l[addr[0]] == 2*g.NP:
-								xu[addr[0]][0] = np.fromstring(x_buf, dtype=z.dtype).reshape([g.DD, 1])
-								xu[addr[0]][1] = np.fromstring(u_buf, dtype=z.dtype).reshape([g.DD, 1])
+								xu[addr[0]][0] = np.fromstring(x_buf[addr[0]], dtype=np.float64).reshape([g.DD, 1])
+								xu[addr[0]][1] = np.fromstring(u_buf[addr[0]], dtype=np.float64).reshape([g.DD, 1])
 								l_row.append(addr[0])
 								nrow+=1
 								if nrow == now:
@@ -103,9 +107,10 @@ if pid==0:
 										for ip in l_row:
 											#ser.sendto(z.tostring(),(ip, g.WPORT))
 											ni.allsendto(ser, z.tostring(), (ip, g.WPORT))
+											print('+++Bridge:',ni.LOCAL_IP,'--z-->',ip)
 											l[ip] = 0
-											x_buf[ip] = ""
-											u_buf[ip] = ""
+											x_buf[ip] = b''
+											u_buf[ip] = b''
 										l_row = []
 										nrow = 0
 									else:
@@ -119,6 +124,7 @@ if pid==0:
 					input()	
 		else:
 			print('Bridge: Error: addr[0] is out of l_ow, or addr[0] has been in l_row.')
+			print(addr[0],l_row,l_ow)
 			input()
 	
 	ser.close()
@@ -134,7 +140,6 @@ else:
 	while(True):
 		r_msg, addr = ser.recvfrom(g.BUFSIZE)
 		if addr[0]==g.IP_ADMIN:  #msg from admin node
-			print('+++Got msg from admin.')
 			r_command = int(np.fromstring(r_msg,dtype=np.int8))
 			if r_command >= 0: #init and setup with mode_i=r_command
 				#1.setup mode
@@ -160,7 +165,7 @@ else:
 						l = {}  # counter for packets (g.NP). l['172.17.0.5']=3 means node have getten 3 packets from 172.17.0.5
 						for ip in l_ob:
 							l[ip] = 0
-							z_buf[ip] = ""
+							z_buf[ip] = b''
 							u[ip]=np.zeros([g.DD,1])
 				#4.setup socket
 				ser.close()			
@@ -188,19 +193,24 @@ else:
 				if g.L_MODE[mode_i][0] == 'Lasso':
 					if g.L_MODE[mode_i][1] == 'StarADMM' or g.L_MODE[mode_i][1] == 'BridgeADMM':				
 						if g.L_MODE[mode_i][3] == g.L_TAU[0]:  #tau=1, synchronous
-							#z[addr[0]] = np.fromstring(r_msg,dtype=x.dtype).reshape([g.DD,1])
-							z_buf[addr[0]] = z_buf[addr[0]] + r_msg
+							#z[addr[0]] = np.fromstring(r_msg,dtype=np.float64).reshape([g.DD,1])
+							z_buf[addr[0]] += r_msg
+							print('+++Worker: renew z_buf')
 							l[addr[0]] += 1
+							print('+++Worker:l[addr[0]]',addr[0],l[addr[0]])
 							if l[addr[0]] == g.NP:
-								z[addr[0]] = np.fromstring(z_buf, dtype=z.dtype).reshape([g.DD, 1])
+								z[addr[0]] = np.fromstring(z_buf[addr[0]], dtype=np.float64).reshape([g.DD, 1])
 								l_rob.append(addr[0])
 								nrob += 1
 								if nrob == nob:
 									x,u,xu = ad.get_xu(x,u,z,l_rob,Q,Atb)
 									for ip in l_rob:
 										#ser.sendto(xu[ip].tostring(),(ip, g.BPORT))
-										ni.allsendto(ser, x.tostring(), (ip, g.WPORT))
-										ni.allsendto(ser, u.tostring(), (ip, g.WPORT))
+										ni.allsendto(ser, x.tostring(), (ip, g.BPORT))
+										ni.allsendto(ser, u[ip].tostring(), (ip, g.BPORT))
+										print('+++Worker:', ni.LOCAL_IP, '--xu-->', ip)
+										l[ip] = 0
+										z_buf[ip] = b''
 									l_rob = []
 									nrob = 0
 									k += 1
@@ -214,6 +224,7 @@ else:
 					input()	
 		else:
 			print('Worker: Error: addr[0] is out of l_ob, or addr[0] has been in l_rob.')
+			print(addr[0], l_rob, l_ob)
 			input()
 		
 	

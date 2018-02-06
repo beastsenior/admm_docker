@@ -1,4 +1,5 @@
 import numpy as np
+import math
 
 #random seed
 SEED = 1
@@ -12,8 +13,8 @@ POC = 0.3667 #probability of connection between two nodes
 ITER = 200
 THETA = 0.1
 RHO = 500.0
-DD = 100  #dimension of data
-ND = 200  #number of data
+DD = 200  #dimension of data
+ND = 100  #number of data
 PNZ = 0.05  # percent of non zeros
 # R = 0
 L_TAU = [1,3,10,50]
@@ -46,7 +47,11 @@ D_COMMAND={'bridge reset':-1,'bridge start':-2,'bridge ready':-3,'worker ready':
 APORT=31500  #port of admin
 BPORT=31501  #port of bridge
 WPORT=31502  #port of worker
-BUFSIZE = 64000 #recvfrom(bufsize). sending u and x with dtype=float64 needs DD*8*2 buffer
+
+TOTAL_BUF=DD*8*2  #sending u and x with dtype=float64 needs DD*8*2 buffer
+BUFSIZE = 512 #recvfrom(bufsize). The max value is about 64000.
+NP=int((TOTAL_BUF+BUFSIZE-1)/BUFSIZE)  #number of packet
+print('+++NP=', NP)
 
 #ip list. (admin ip is 172.17.0.1, which is not in the list)
 L_IP = [\
