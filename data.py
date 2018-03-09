@@ -14,7 +14,7 @@ def init_data(problem):
 			#x[i] = np.random.random()* (1.0e+7)
 			x0[i] = np.random.random()
 		A = np.random.normal(0.0, 1.0, [g.NN*g.ND, g.DD])
-		b = A.dot(x0) + np.random.normal(0.0, 0.1, [g.NN*g.ND,1])
+		b = A.dot(x0) + np.random.normal(0.0, 0.01, [g.NN*g.ND,1])
 		#b = A.dot(x0)
 		
 		#compute theta*|x0|_1
@@ -32,7 +32,7 @@ def data(mode_i):
 	if g.L_MODE[mode_i][0] == 'Lasso':
 		if g.L_MODE[mode_i][1] == 'SingleADMM':
 			A, b = db.load(['A','b'])
-			db.save({'A':A,'b':b},mode_i)
+			db.save({'A':A,'b':b},mode_i, g.IP_SINGLE)
 
 		elif g.L_MODE[mode_i][1] == 'StarADMM' or g.L_MODE[mode_i][1] == 'BridgeADMM':			
 			A, b = db.load(['A','b'])

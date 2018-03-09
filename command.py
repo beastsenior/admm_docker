@@ -45,4 +45,13 @@ def start_bridge(l_bridge):
 	ser.close()
 	print('All bridges have done.')
 
+def single_admm(mode_i,ip_single=g.IP_SINGLE):
+	ser = ni.init_socket('admin')
+	ser.sendto(np.int8(mode_i).tostring(), (ip_single, g.BPORT))
+	print('Node for SINGLE ADMM start. ADMM is running...')
+	r_msg, addr = ser.recvfrom(g.BUFSIZE)
+	r_command = int(np.fromstring(r_msg, dtype=np.int8))
+	if r_command == g.D_COMMAND['single admm done']:
+		ser.close()
+		print('SINGLE ADMM has done.')
 	

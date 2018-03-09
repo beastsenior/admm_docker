@@ -35,7 +35,7 @@ def init_socket(role):
 def allsendto(ser, buf, addr):
 	for l in range(g.NP):
 		ser.sendto(buf[l*g.BUFSIZE:(l+1)*g.BUFSIZE],addr)
-		time.sleep(0.1)
+		#time.sleep(0.1)
 
 #local ip
 LOCAL_IP = get_local_ip()

@@ -14,45 +14,7 @@ def admm(mode_i):
 	G, = db.load(['G'],mode_i)
 	if g.L_MODE[mode_i][0] == 'Lasso':
 		if g.L_MODE[mode_i][1] == 'SingleADMM':
-			#u,x,z
-			u = np.zeros([g.DD, 1])
-			x = np.zeros([g.DD, 1])
-			z = np.zeros([g.DD, 1])
-			
-			#time, Lagrangian funtion
-			t = np.zeros([g.ITER]) 
-			Lmin = np.zeros([g.ITER])  
-
-			all_A, all_b = db.load(['A','b'],mode_i)
-			if g.L_MODE[mode_i][2] == 'all_batch':
-				A = all_A
-				b = all_b
-			elif g.L_MODE[mode_i][2] == 'one_batch':
-				A = (all_A.reshape([g.NN, g.ND, g.DD]))[0]
-				b = (all_b.reshape([g.NN, g.ND, 1]))[0]
-			else:
-				print('Error: out of SingleADMM mode.')
-				input()
-			
-			#compute
-			AtA = A.T.dot(A)
-			Atb = A.T.dot(b)
-			Q = AtA + g.RHO * np.identity(g.DD)
-			Q = np.linalg.inv(Q)
-
-			k = 0
-			while (k < g.ITER):
-				u = u + x - z
-				x = Q.dot(Atb + g.RHO * (z - u))
-				z = sthresh(x + u, g.THETA / g.RHO)
-
-				Lmin[k]=0.5*np.square(np.dot(A,x)-b).sum()+g.RHO*np.dot(u.T,(x-z))+0.5*g.RHO*(np.square(x-z).sum())+g.THETA*np.linalg.norm(z, ord=1)
-				if k == 0:
-					t0 = time.time()  #start time
-				t[k] = time.time() - t0
-				k += 1
-			#save
-			db.save({'t':t,'Lmin':Lmin},mode_i)
+			c.single_admm(mode_i)
 			
 		elif g.L_MODE[mode_i][1] == 'StarADMM' or g.L_MODE[mode_i][1] == 'BridgeADMM':
 			#get bridges and workers
@@ -71,7 +33,6 @@ def admm(mode_i):
 				all_t = all_t + d_t[ip]
 			mean_Lmin = all_Lmin/len(l_bridge)
 			mean_t = all_t/len(l_bridge)
-			
 			db.save({'Lmin':mean_Lmin,'t':mean_t},mode_i)
 		
 		else:

@@ -1,5 +1,4 @@
 import numpy as np
-import math
 
 #random seed
 SEED = 1
@@ -41,7 +40,7 @@ DATA_DIR = './data/'
 #for example: 
 #sending np.int8(2).tostring to worker 7, means the command 'mode_i in worker 7 change to 2'
 #sending np.int8(-2).tostring to bridge 10, means the command 'bridge 10 start'
-D_COMMAND={'bridge reset':-1,'bridge start':-2,'bridge ready':-3,'worker ready':-4}
+D_COMMAND={'bridge reset':-1,'bridge start':-2,'bridge ready':-3,'worker ready':-4,'single admm done':-5}
 
 #network interface parameter
 APORT=31500  #port of admin
@@ -49,17 +48,18 @@ BPORT=31501  #port of bridge
 WPORT=31502  #port of worker
 
 TOTAL_BUF=DD*8*2  #sending u and x with dtype=float64 needs DD*8*2 buffer
-BUFSIZE = 512 #recvfrom(bufsize). The max value is about 64000.
+BUFSIZE = 32768 #recvfrom(bufsize). The max value is about 64000.
 NP=int((TOTAL_BUF+BUFSIZE-1)/BUFSIZE)  #number of packet
 print('+++NP=', NP)
 
-#ip list. (admin ip is 172.17.0.1, which is not in the list)
+#nodes ip list. (admin ip is 172.17.0.1, which is not in the list.)
 L_IP = [\
 '172.17.0.2',  '172.17.0.3',  '172.17.0.4',  '172.17.0.5',  '172.17.0.6',  \
 '172.17.0.7',  '172.17.0.8',  '172.17.0.9',  '172.17.0.10', '172.17.0.11', \
 '172.17.0.12', '172.17.0.13', '172.17.0.14', '172.17.0.15', '172.17.0.16', \
 '172.17.0.17']
 IP_ADMIN = '172.17.0.1'  #admin machine IP
+IP_SINGLE = '172.17.0.18'  #the node is for running single admm
 NN = len(L_IP)  # number of node
 #ip dict. {0:'172.17.0.2,1:'172.17.0.3'...}
 def ipdict():  #iplist to ipdict
